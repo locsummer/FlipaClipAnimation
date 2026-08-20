@@ -53,6 +53,13 @@ fun StudioScreen(
     val isExporting by exportViewModel.isExporting.collectAsState()
     val exportProgress by exportViewModel.exportProgress.collectAsState()
     val exportedFile by exportViewModel.exportedFile.collectAsState()
+    val exportError by exportViewModel.exportError.collectAsState()
+
+    LaunchedEffect(exportError) {
+        exportError?.let { err ->
+            android.widget.Toast.makeText(context, "Lỗi xuất: $err", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
 
     // UI Dialog States
     var showToolSettings by remember { mutableStateOf(false) }

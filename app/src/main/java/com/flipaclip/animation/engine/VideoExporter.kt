@@ -114,7 +114,11 @@ object VideoExporter {
                 )
 
                 // Draw bitmap to the codec's input surface
-                val canvas = inputSurface.lockHardwareCanvas()
+                val canvas = try {
+                    inputSurface.lockHardwareCanvas()
+                } catch (e: Exception) {
+                    inputSurface.lockCanvas(null)
+                }
                 canvas.drawColor(Color.BLACK)
                 val destRect = Rect(0, 0, width, height)
                 val srcRect = Rect(0, 0, frameBitmap.width, frameBitmap.height)
