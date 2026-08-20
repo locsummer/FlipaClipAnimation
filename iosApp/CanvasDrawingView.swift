@@ -1,6 +1,6 @@
 //
 //  CanvasDrawingView.swift
-//  FlipaClip iOS Canvas Drawing View with Apple Pencil & Multi-Touch Gesture
+//  FlipaClip iOS Responsive Drawing Canvas
 //
 
 import SwiftUI
@@ -15,190 +15,230 @@ struct CanvasDrawingView: View {
     @Binding var brushSize: CGFloat
     @Binding var brushOpacity: CGFloat
 
-    @State private var activeStroke: DrawingStroke? = nil
-    @State private var zoomScale: CGFloat = 1.0
-    @State private var panOffset: CGSize = .zero
-
     var body: some View {
         GeometryReader { geometry in
-            let canvasFitScale = min(
-                (geometry.size.width * 0.9) / project.width,
-                (geometry.size.height * 0.9) / project.height
+            let fitScale = min(
+                (geometry.size.width - 24) / project.width,
+                (geometry.size.height - 24) / project.height
             )
-            let totalScale = canvasFitScale * zoomScale
 
             ZStack {
-                Color(red: 0.12, green: 0.12, blue: 0.14).ignoresSafeArea()
+                Color(red: 0.12, green: 0.12, blue: 0.14)
+                    .ignoresSafeArea()
 
-                // Project Canvas Container
+                // Drawing Canvas Container
                 ZStack {
                     // White Canvas Background
                     Color.white
                         .frame(width: project.width, height: project.height)
-                        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 4)
+                        .shadow(color: Color.black.opacity(0.4), radius: 12, x: 0, y: 6)
 
-                    // 1. Onion Skin (Previous Frame Ghost - Red)
-                    if project.onionSkinConfig.isEnabled && currentFrameIndex > 0 {
-                        let prevFrame = project.frames[currentFrameIndex - 1]
-                        CanvasViewRepresentable(frame: prevFrame, tintColor: UIColor.red.withAlphaComponent(0.3))
-                            .frame(width: project.width, height: project.height)
-                            .allowsHitTesting(false)
-                    }
-
-                    // 2. Active Frame Layers
-                    if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
-                        let currentFrame = project.frames[currentFrameIndex]
-                        CanvasViewRepresentable(frame: currentFrame, tintColor: nil)
-                            .frame(width: project.width, height: project.height)
-                            .allowsHitTesting(false)
-                    }
-
-                    // 3. In-Progress Live Stroke Preview
-                    if let stroke = activeStroke {
-                        Path { path in
-                            guard !stroke.points.isEmpty else { return }
-                            path.move(to: CGPoint(x: stroke.points[0].x, y: stroke.points[0].y))
-                            for i in 1..<stroke.points.count {
-                                let prev = stroke.points[i - 1]
-                                let curr = stroke.points[i]
-                                let mid = CGPoint(x: (prev.x + curr.x) / 2, y: (prev.y + curr.y) / 2)
-                                path.addQuadCurve(to: mid, control: CGPoint(x: prev.x, y: prev.y))
-                            }
-                            if let last = stroke.points.last {
-                                path.addLine(to: CGPoint(x: last.x, y: last.y))
-                            }
-                        }
-                        .stroke(
-                            stroke.toolType == .eraser ? Color.gray.opacity(0.4) : selectedColor.opacity(Double(stroke.opacity)),
-                            style: StrokeStyle(lineWidth: stroke.strokeWidth, lineCap: .round, lineJoin: .round)
-                        )
-                        .frame(width: project.width, height: project.height)
-                        .allowsHitTesting(false)
-                    }
+                    // Touch Canvas Engine
+                    InteractiveTouchCanvas(
+                        project: project,
+                        currentFrameIndex: currentFrameIndex,
+                        currentLayerIndex: currentLayerIndex,
+                        selectedTool: selectedTool,
+                        selectedColorHex: selectedColor.toHexColor() ?? "#000000",
+                        brushSize: brushSize,
+                        brushOpacity: brushOpacity
+                    )
+                    .frame(width: project.width, height: project.height)
                 }
                 .frame(width: project.width, height: project.height)
-                .scaleEffect(totalScale)
-                .offset(panOffset)
-                .gesture(
-                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                        .onChanged { value in
-                            let canvasOriginX = (geometry.size.width - project.width * totalScale) / 2 + panOffset.width
-                            let canvasOriginY = (geometry.size.height - project.height * totalScale) / 2 + panOffset.height
-
-                            let canvasX = (value.location.x - canvasOriginX) / totalScale
-                            let canvasY = (value.location.y - canvasOriginY) / totalScale
-
-                            if activeStroke == nil {
-                                // Start new stroke
-                                activeStroke = DrawingStroke(
-                                    points: [StrokePoint(x: canvasX, y: canvasY, pressure: 1.0)],
-                                    colorHex: selectedColor.toHexColor() ?? "#000000",
-                                    strokeWidth: brushSize,
-                                    opacity: brushOpacity,
-                                    toolType: selectedTool
-                                )
-                            } else {
-                                // Append point
-                                activeStroke?.points.append(StrokePoint(x: canvasX, y: canvasY, pressure: 1.0))
-                            }
-                        }
-                        .onEnded { value in
-                            if let stroke = activeStroke, currentFrameIndex < project.frames.count {
-                                let frame = project.frames[currentFrameIndex]
-                                if currentLayerIndex < frame.layers.count {
-                                    project.frames[currentFrameIndex].layers[currentLayerIndex].strokes.append(stroke)
-                                }
-                            }
-                            activeStroke = nil
-                            project.updatedAt = Date()
-                        }
-                )
+                .scaleEffect(fitScale)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-struct CanvasViewRepresentable: UIViewRepresentable {
-    let frame: AnimationFrame
-    let tintColor: UIColor?
+struct InteractiveTouchCanvas: UIViewRepresentable {
+    @ObservedObject var project: ProjectModel
+    let currentFrameIndex: Int
+    let currentLayerIndex: Int
+    let selectedTool: ToolType
+    let selectedColorHex: String
+    let brushSize: CGFloat
+    let brushOpacity: CGFloat
 
-    func makeUIView(context: Context) -> CanvasUIView {
-        let view = CanvasUIView()
+    func makeUIView(context: Context) -> TouchDrawingUIView {
+        let view = TouchDrawingUIView()
         view.backgroundColor = .clear
         view.isOpaque = false
-        view.update(frame: frame, tintColor: tintColor)
+        view.isUserInteractionEnabled = true
+        view.project = project
+        view.currentFrameIndex = currentFrameIndex
+        view.currentLayerIndex = currentLayerIndex
+        view.selectedTool = selectedTool
+        view.selectedColorHex = selectedColorHex
+        view.brushSize = brushSize
+        view.brushOpacity = brushOpacity
         return view
     }
 
-    func updateUIView(_ uiView: CanvasUIView, context: Context) {
-        uiView.update(frame: frame, tintColor: tintColor)
+    func updateUIView(_ uiView: TouchDrawingUIView, context: Context) {
+        uiView.project = project
+        uiView.currentFrameIndex = currentFrameIndex
+        uiView.currentLayerIndex = currentLayerIndex
+        uiView.selectedTool = selectedTool
+        uiView.selectedColorHex = selectedColorHex
+        uiView.brushSize = brushSize
+        uiView.brushOpacity = brushOpacity
+        uiView.setNeedsDisplay()
     }
 }
 
-class CanvasUIView: UIView {
-    private var currentFrame: AnimationFrame?
-    private var currentTint: UIColor?
+class TouchDrawingUIView: UIView {
+    var project: ProjectModel?
+    var currentFrameIndex: Int = 0
+    var currentLayerIndex: Int = 0
+    var selectedTool: ToolType = .pen
+    var selectedColorHex: String = "#000000"
+    var brushSize: CGFloat = 8.0
+    var brushOpacity: CGFloat = 1.0
 
-    func update(frame: AnimationFrame, tintColor: UIColor?) {
-        self.currentFrame = frame
-        self.currentTint = tintColor
-        self.setNeedsDisplay()
+    private var activePoints: [StrokePoint] = []
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        self.isMultipleTouchEnabled = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        self.isMultipleTouchEnabled = true
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+        let pressure = touch.force > 0 ? touch.force / touch.maximumPossibleForce : 1.0
+
+        activePoints = [StrokePoint(x: location.x, y: location.y, pressure: pressure)]
+        setNeedsDisplay()
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+        let pressure = touch.force > 0 ? touch.force / touch.maximumPossibleForce : 1.0
+
+        activePoints.append(StrokePoint(x: location.x, y: location.y, pressure: pressure))
+        setNeedsDisplay()
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        commitActiveStroke()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        commitActiveStroke()
+    }
+
+    private func commitActiveStroke() {
+        guard !activePoints.isEmpty, let project = project else {
+            activePoints.removeAll()
+            return
+        }
+
+        if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
+            let stroke = DrawingStroke(
+                points: activePoints,
+                colorHex: selectedColorHex,
+                strokeWidth: brushSize,
+                opacity: brushOpacity,
+                toolType: selectedTool
+            )
+            if currentLayerIndex >= 0 && currentLayerIndex < project.frames[currentFrameIndex].layers.count {
+                project.frames[currentFrameIndex].layers[currentLayerIndex].strokes.append(stroke)
+            } else if !project.frames[currentFrameIndex].layers.isEmpty {
+                project.frames[currentFrameIndex].layers[0].strokes.append(stroke)
+            }
+            project.updatedAt = Date()
+        }
+
+        activePoints.removeAll()
+        setNeedsDisplay()
     }
 
     override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext(), let frame = currentFrame else { return }
+        guard let context = UIGraphicsGetCurrentContext(), let project = project else { return }
 
+        // 1. Onion Skin (Previous Frame in Translucent Red)
+        if project.onionSkinConfig.isEnabled && currentFrameIndex > 0 {
+            let prevFrame = project.frames[currentFrameIndex - 1]
+            drawFrameLayers(context: context, frame: prevFrame, overrideColor: UIColor.red.withAlphaComponent(0.25))
+        }
+
+        // 2. Current Frame Layers
+        if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
+            let currentFrame = project.frames[currentFrameIndex]
+            drawFrameLayers(context: context, frame: currentFrame, overrideColor: nil)
+        }
+
+        // 3. Live In-Progress Active Stroke
+        if !activePoints.isEmpty {
+            let activeColor = selectedTool == .eraser ? UIColor.lightGray.withAlphaComponent(0.4) : (UIColor(hex: selectedColorHex) ?? .black).withAlphaComponent(brushOpacity)
+            drawStrokePoints(context: context, points: activePoints, color: activeColor, strokeWidth: brushSize, isEraser: selectedTool == .eraser)
+        }
+    }
+
+    private func drawFrameLayers(context: CGContext, frame: AnimationFrame, overrideColor: UIColor?) {
         for layer in frame.layers where layer.isVisible {
             context.saveGState()
             context.setAlpha(layer.opacity)
 
             for stroke in layer.strokes {
-                let color = currentTint ?? (UIColor(hex: stroke.colorHex) ?? .black)
-                context.setStrokeColor(color.withAlphaComponent(stroke.opacity).cgColor)
-                context.setFillColor(color.withAlphaComponent(stroke.opacity).cgColor)
-                context.setLineWidth(stroke.strokeWidth)
-                context.setLineCap(.round)
-                context.setLineJoin(.round)
-
-                if stroke.toolType == .eraser && currentTint == nil {
-                    context.setBlendMode(.clear)
-                } else {
-                    context.setBlendMode(.normal)
-                }
-
-                if stroke.points.count == 1 {
-                    let p = stroke.points[0]
-                    context.fillEllipse(in: CGRect(x: p.x - stroke.strokeWidth / 2, y: p.y - stroke.strokeWidth / 2, width: stroke.strokeWidth, height: stroke.strokeWidth))
-                } else if stroke.points.count > 1 {
-                    let path = CGMutablePath()
-                    path.move(to: CGPoint(x: stroke.points[0].x, y: stroke.points[0].y))
-                    for i in 1..<stroke.points.count {
-                        let prev = stroke.points[i - 1]
-                        let curr = stroke.points[i]
-                        let mid = CGPoint(x: (prev.x + curr.x) / 2, y: (prev.y + curr.y) / 2)
-                        path.addQuadCurve(to: mid, control: CGPoint(x: prev.x, y: prev.y))
-                    }
-                    path.addLine(to: CGPoint(x: stroke.points.last!.x, y: stroke.points.last!.y))
-                    context.addPath(path)
-                    context.strokePath()
-                }
+                let color = overrideColor ?? ((UIColor(hex: stroke.colorHex) ?? .black).withAlphaComponent(stroke.opacity))
+                drawStrokePoints(
+                    context: context,
+                    points: stroke.points,
+                    color: color,
+                    strokeWidth: stroke.strokeWidth,
+                    isEraser: stroke.toolType == .eraser && overrideColor == nil
+                )
             }
 
             context.restoreGState()
         }
     }
-}
 
-extension Color {
-    func toHexColor() -> String? {
-        let uic = UIColor(self)
-        var r: CGFloat = 0
-        var g: CGFloat = 0
-        var b: CGFloat = 0
-        var a: CGFloat = 0
-        guard uic.getRed(&r, green: &g, blue: &b, alpha: &a) else {
-            return "#000000"
+    private func drawStrokePoints(context: CGContext, points: [StrokePoint], color: UIColor, strokeWidth: CGFloat, isEraser: Bool) {
+        guard !points.isEmpty else { return }
+
+        context.saveGState()
+        context.setStrokeColor(color.cgColor)
+        context.setFillColor(color.cgColor)
+        context.setLineWidth(strokeWidth)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+
+        if isEraser {
+            context.setBlendMode(.clear)
+        } else {
+            context.setBlendMode(.normal)
         }
-        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+
+        if points.count == 1 {
+            let p = points[0]
+            context.fillEllipse(in: CGRect(x: p.x - strokeWidth / 2, y: p.y - strokeWidth / 2, width: strokeWidth, height: strokeWidth))
+        } else {
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: points[0].x, y: points[0].y))
+            for i in 1..<points.count {
+                let prev = points[i - 1]
+                let curr = points[i]
+                let mid = CGPoint(x: (prev.x + curr.x) / 2, y: (prev.y + curr.y) / 2)
+                path.addQuadCurve(to: mid, control: CGPoint(x: prev.x, y: prev.y))
+            }
+            if let last = points.last {
+                path.addLine(to: CGPoint(x: last.x, y: last.y))
+            }
+            context.addPath(path)
+            context.strokePath()
+        }
+
+        context.restoreGState()
     }
 }

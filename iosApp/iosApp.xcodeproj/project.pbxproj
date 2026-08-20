@@ -13,6 +13,9 @@
 		A10000012C12340000000004 /* CanvasDrawingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12340000000004 /* CanvasDrawingView.swift */; };
 		A10000012C12340000000005 /* VideoExportEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12340000000005 /* VideoExportEngine.swift */; };
 		A10000012C12340000000006 /* GifExportEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12340000000006 /* GifExportEngine.swift */; };
+		A10000012C12340000000007 /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12340000000008 /* ProjectManager.swift */; };
+		A10000012C12340000000008 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12340000000009 /* HomeView.swift */; };
+		A10000012C12340000000009 /* StudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C1234000000000A /* StudioView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +26,9 @@
 		A10000022C12340000000005 /* VideoExportEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExportEngine.swift; sourceTree = "<group>"; };
 		A10000022C12340000000006 /* GifExportEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GifExportEngine.swift; sourceTree = "<group>"; };
 		A10000022C12340000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A10000022C12340000000008 /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
+		A10000022C12340000000009 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A10000022C1234000000000A /* StudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioView.swift; sourceTree = "<group>"; };
 		A10000032C12340000000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -50,6 +56,9 @@
 			children = (
 				A10000022C12340000000001 /* iOSApp.swift */,
 				A10000022C12340000000002 /* ContentView.swift */,
+				A10000022C12340000000008 /* ProjectManager.swift */,
+				A10000022C12340000000009 /* HomeView.swift */,
+				A10000022C1234000000000A /* StudioView.swift */,
 				A10000022C12340000000003 /* Models.swift */,
 				A10000022C12340000000004 /* CanvasDrawingView.swift */,
 				A10000022C12340000000005 /* VideoExportEngine.swift */,
@@ -136,6 +145,9 @@
 			files = (
 				A10000012C12340000000001 /* iOSApp.swift in Sources */,
 				A10000012C12340000000002 /* ContentView.swift in Sources */,
+				A10000012C12340000000007 /* ProjectManager.swift in Sources */,
+				A10000012C12340000000008 /* HomeView.swift in Sources */,
+				A10000012C12340000000009 /* StudioView.swift in Sources */,
 				A10000012C12340000000003 /* Models.swift in Sources */,
 				A10000012C12340000000004 /* CanvasDrawingView.swift in Sources */,
 				A10000012C12340000000005 /* VideoExportEngine.swift in Sources */,

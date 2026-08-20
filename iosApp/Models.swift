@@ -25,14 +25,14 @@ enum CanvasPreset: String, CaseIterable, Identifiable, Codable {
 }
 
 enum ToolType: String, CaseIterable, Identifiable, Codable {
-    case pen = "Pen"
-    case pencil = "Pencil"
-    case marker = "Marker"
-    case airbrush = "Airbrush"
-    case eraser = "Eraser"
-    case bucket = "Bucket"
-    case shape = "Shape"
-    case text = "Text"
+    case pen = "Bút vẽ"
+    case pencil = "Bút chì"
+    case marker = "Dạ quang"
+    case airbrush = "Bình phun"
+    case eraser = "Tẩy"
+    case bucket = "Đổ màu"
+    case shape = "Hình khối"
+    case text = "Chữ"
 
     var id: String { rawValue }
 }
@@ -123,7 +123,7 @@ struct OnionSkinConfig: Codable, Equatable {
     var opacity: CGFloat = 0.4
 }
 
-class ProjectModel: ObservableObject, Identifiable {
+class ProjectModel: ObservableObject, Identifiable, Codable {
     var id: UUID = UUID()
     @Published var title: String
     @Published var preset: CanvasPreset
@@ -135,8 +135,12 @@ class ProjectModel: ObservableObject, Identifiable {
     @Published var onionSkinConfig: OnionSkinConfig
     @Published var updatedAt: Date
 
+    enum CodingKeys: String, CodingKey {
+        case id, title, preset, fps, width, height, frames, audioTracks, onionSkinConfig, updatedAt
+    }
+
     init(
-        title: String = "My Animation",
+        title: String = "Dự án hoạt hình",
         preset: CanvasPreset = .tiktok,
         fps: Int = 12,
         frames: [AnimationFrame] = [AnimationFrame()]
@@ -151,5 +155,33 @@ class ProjectModel: ObservableObject, Identifiable {
         self.audioTracks = []
         self.onionSkinConfig = OnionSkinConfig()
         self.updatedAt = Date()
+    }
+
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        preset = try container.decode(CanvasPreset.self, forKey: .preset)
+        fps = try container.decode(Int.self, forKey: .fps)
+        width = try container.decode(CGFloat.self, forKey: .width)
+        height = try container.decode(CGFloat.self, forKey: .height)
+        frames = try container.decode([AnimationFrame].self, forKey: .frames)
+        audioTracks = try container.decode([AudioTrack].self, forKey: .audioTracks)
+        onionSkinConfig = try container.decode(OnionSkinConfig.self, forKey: .onionSkinConfig)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(preset, forKey: .preset)
+        try container.encode(fps, forKey: .fps)
+        try container.encode(width, forKey: .width)
+        try container.encode(height, forKey: .height)
+        try container.encode(frames, forKey: .frames)
+        try container.encode(audioTracks, forKey: .audioTracks)
+        try container.encode(onionSkinConfig, forKey: .onionSkinConfig)
+        try container.encode(updatedAt, forKey: .updatedAt)
     }
 }
