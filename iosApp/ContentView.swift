@@ -64,8 +64,8 @@ struct ContentView: View {
                 ZStack {
                     Color.black.opacity(0.8).ignoresSafeArea()
                     VStack(spacing: 16) {
-                        ProgressView(value: exportProgress, total: 1.0)
-                            .progressViewStyle(LinearProgressViewStyle(tint: Color.orange))
+                        ProgressView(value: Double(exportProgress), total: 1.0)
+                            .accentColor(.orange)
                             .frame(width: 240)
                         Text("Rendering Movie: \(Int(exportProgress * 100))%")
                             .foregroundColor(.white)

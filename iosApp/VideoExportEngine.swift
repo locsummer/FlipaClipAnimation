@@ -5,6 +5,7 @@
 
 import AVFoundation
 import UIKit
+import CoreVideo
 
 class VideoExportEngine {
 
@@ -23,26 +24,26 @@ class VideoExportEngine {
         let fps = Int32(project.fps)
         let totalFrames = project.frames.count
 
-        guard let writer = try? AVAssetWriter(outputURL: outputURL, fileType: .mp4) else {
+        guard let writer = try? AVAssetWriter(outputURL: outputURL, fileType: AVFileType.mp4) else {
             completion(.failure(NSError(domain: "VideoExport", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to initialize AVAssetWriter"])))
             return
         }
 
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height,
+            AVVideoWidthKey: NSNumber(value: width),
+            AVVideoHeightKey: NSNumber(value: height),
             AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: width * height * 4,
+                AVVideoAverageBitRateKey: NSNumber(value: width * height * 4),
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
             ]
         ]
 
-        let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+        let writerInput = AVAssetWriterInput(mediaType: AVMediaType.video, outputSettings: videoSettings)
         writerInput.expectsMediaDataInRealTime = false
 
         let sourceBufferAttributes: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+            kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
             kCVPixelBufferWidthKey as String: width,
             kCVPixelBufferHeightKey as String: height,
             kCVPixelBufferCGImageCompatibilityKey as String: true,
@@ -61,9 +62,9 @@ class VideoExportEngine {
 
         writer.add(writerInput)
         writer.startWriting()
-        writer.startSession(atSourceTime: .zero)
+        writer.startSession(atSourceTime: CMTime.zero)
 
-        let queue = DispatchQueue(label: "com.flipaclip.videoexport")
+        let queue = DispatchQueue(label: "com.flipaclip.videoexport", qos: .userInitiated)
         var frameIndex = 0
 
         writerInput.requestMediaDataWhenReady(on: queue) {
@@ -73,7 +74,7 @@ class VideoExportEngine {
                 // Render Frame to UIImage
                 let frameImage = CanvasRenderer.renderFrame(project: project, frameIndex: frameIndex, size: CGSize(width: width, height: height))
                 
-                if let pixelBuffer = self.pixelBuffer(from: frameImage, size: CGSize(width: width, height: height)) {
+                if let pixelBuffer = self.newPixelBuffer(from: frameImage, size: CGSize(width: width, height: height)) {
                     adaptor.append(pixelBuffer, withPresentationTime: frameTime)
                 }
 
@@ -99,18 +100,20 @@ class VideoExportEngine {
         }
     }
 
-    private static func pixelBuffer(from image: UIImage, size: CGSize) -> CVPixelBuffer? {
+    private static func newPixelBuffer(from image: UIImage, size: CGSize) -> CVPixelBuffer? {
         var pixelBuffer: CVPixelBuffer?
         let options: [CFString: Any] = [
             kCVPixelBufferCGImageCompatibilityKey: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey: true
         ]
         
+        let width = Int(size.width)
+        let height = Int(size.height)
         let status = CVPixelBufferCreate(
             kCFAllocatorDefault,
-            Int(size.width),
-            Int(size.height),
-            kCVPixelFormatType_32ARGB,
+            width,
+            height,
+            OSType(kCVPixelFormatType_32ARGB),
             options as CFDictionary,
             &pixelBuffer
         )
@@ -120,21 +123,27 @@ class VideoExportEngine {
         }
 
         CVPixelBufferLockBaseAddress(buffer, [])
-        let pxData = CVPixelBufferGetBaseAddress(buffer)
+        guard let pxData = CVPixelBufferGetBaseAddress(buffer) else {
+            CVPixelBufferUnlockBaseAddress(buffer, [])
+            return nil
+        }
 
         let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
-        let context = CGContext(
+        guard let context = CGContext(
             data: pxData,
-            width: Int(size.width),
-            height: Int(size.height),
+            width: width,
+            height: height,
             bitsPerComponent: 8,
             bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
             space: rgbColorSpace,
             bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
-        )
+        ) else {
+            CVPixelBufferUnlockBaseAddress(buffer, [])
+            return nil
+        }
 
         if let cgImage = image.cgImage {
-            context?.draw(cgImage, in: CGRect(origin: .zero, size: size))
+            context.draw(cgImage, in: CGRect(origin: .zero, size: size))
         }
 
         CVPixelBufferUnlockBaseAddress(buffer, [])

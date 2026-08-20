@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct CanvasDrawingView: View {
     @ObservedObject var project: ProjectModel
@@ -17,7 +18,6 @@ struct CanvasDrawingView: View {
     @State private var activeStroke: DrawingStroke? = nil
     @State private var zoomScale: CGFloat = 1.0
     @State private var panOffset: CGSize = .zero
-    @State private var lastPanOffset: CGSize = .zero
 
     var body: some View {
         GeometryReader { geometry in
@@ -35,7 +35,7 @@ struct CanvasDrawingView: View {
                     // White Canvas Background
                     Color.white
                         .frame(width: project.width, height: project.height)
-                        .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 4)
+                        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 4)
 
                     // 1. Onion Skin (Previous Frame Ghost - Red)
                     if project.onionSkinConfig.isEnabled && currentFrameIndex > 0 {
@@ -92,7 +92,7 @@ struct CanvasDrawingView: View {
                                 // Start new stroke
                                 activeStroke = DrawingStroke(
                                     points: [StrokePoint(x: canvasX, y: canvasY, pressure: 1.0)],
-                                    colorHex: selectedColor.toHex() ?? "#000000",
+                                    colorHex: selectedColor.toHexColor() ?? "#000000",
                                     strokeWidth: brushSize,
                                     opacity: brushOpacity,
                                     toolType: selectedTool
@@ -190,14 +190,15 @@ class CanvasUIView: UIView {
 }
 
 extension Color {
-    func toHex() -> String? {
+    func toHexColor() -> String? {
         let uic = UIColor(self)
-        guard let components = uic.cgColor.components, components.count >= 3 else {
-            return nil
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard uic.getRed(&r, green: &g, blue: &b, alpha: &a) else {
+            return "#000000"
         }
-        let r = Float(components[0])
-        let g = Float(components[1])
-        let b = Float(components[2])
-        return String(format: "#%02lX%02lX%02lX", lroundf(r * 255), lroundf(g * 255), lroundf(b * 255))
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }

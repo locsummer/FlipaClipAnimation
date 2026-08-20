@@ -5,7 +5,7 @@
 
 import UIKit
 import ImageIO
-import MobileCoreServices
+import CoreGraphics
 import UniformTypeIdentifiers
 
 class GifExportEngine {
@@ -22,7 +22,7 @@ class GifExportEngine {
 
         guard let destination = CGImageDestinationCreateWithURL(
             outputURL as CFURL,
-            UTType.gif.identifier as CFString,
+            "com.compuserve.gif" as CFString,
             project.frames.count,
             nil
         ) else {
@@ -150,7 +150,9 @@ class CanvasRenderer {
             path.addQuadCurve(to: mid, control: CGPoint(x: prev.x, y: prev.y))
         }
 
-        path.addLine(to: CGPoint(x: stroke.points.last!.x, y: stroke.points.last!.y))
+        if let last = stroke.points.last {
+            path.addLine(to: CGPoint(x: last.x, y: last.y))
+        }
         cgContext.addPath(path)
         cgContext.strokePath()
     }
