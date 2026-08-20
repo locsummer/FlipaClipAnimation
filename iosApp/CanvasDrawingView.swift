@@ -1,6 +1,6 @@
 //
 //  CanvasDrawingView.swift
-//  FlipaClip iOS Responsive Drawing Canvas
+//  FlipaClip iOS Responsive Drawing Canvas with Vector Mapping
 //
 
 import SwiftUI
@@ -17,23 +17,29 @@ struct CanvasDrawingView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let fitScale = min(
-                (geometry.size.width - 24) / project.width,
-                (geometry.size.height - 24) / project.height
+            let availableWidth = max(geometry.size.width - 32, 100)
+            let availableHeight = max(geometry.size.height - 32, 100)
+            let aspectRatio = project.width / project.height
+
+            let (canvasWidth, canvasHeight) = calculateCanvasSize(
+                availableWidth: availableWidth,
+                availableHeight: availableHeight,
+                aspectRatio: aspectRatio
             )
 
             ZStack {
-                Color(red: 0.12, green: 0.12, blue: 0.14)
+                // Studio Dark Canvas Background
+                Color(red: 0.12, green: 0.12, blue: 0.15)
                     .ignoresSafeArea()
 
-                // Drawing Canvas Container
+                // Active Drawing Paper (Tờ giấy vẽ màu trắng)
                 ZStack {
-                    // White Canvas Background
-                    Color.white
-                        .frame(width: project.width, height: project.height)
-                        .shadow(color: Color.black.opacity(0.4), radius: 12, x: 0, y: 6)
+                    // White Canvas Paper with Shadow
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(0.5), radius: 14, x: 0, y: 6)
 
-                    // Touch Canvas Engine
+                    // Interactive Touch Vector Engine
                     InteractiveTouchCanvas(
                         project: project,
                         currentFrameIndex: currentFrameIndex,
@@ -41,15 +47,30 @@ struct CanvasDrawingView: View {
                         selectedTool: selectedTool,
                         selectedColorHex: selectedColor.toHexColor(),
                         brushSize: brushSize,
-                        brushOpacity: brushOpacity
+                        brushOpacity: brushOpacity,
+                        canvasSize: CGSize(width: canvasWidth, height: canvasHeight)
                     )
-                    .frame(width: project.width, height: project.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .frame(width: project.width, height: project.height)
-                .scaleEffect(fitScale)
+                .frame(width: canvasWidth, height: canvasHeight)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private func calculateCanvasSize(
+        availableWidth: CGFloat,
+        availableHeight: CGFloat,
+        aspectRatio: CGFloat
+    ) -> (CGFloat, CGFloat) {
+        var w = availableWidth
+        var h = availableWidth / aspectRatio
+
+        if h > availableHeight {
+            h = availableHeight
+            w = availableHeight * aspectRatio
+        }
+        return (w, h)
     }
 }
 
@@ -61,30 +82,37 @@ struct InteractiveTouchCanvas: UIViewRepresentable {
     let selectedColorHex: String
     let brushSize: CGFloat
     let brushOpacity: CGFloat
+    let canvasSize: CGSize
 
     func makeUIView(context: Context) -> TouchDrawingUIView {
         let view = TouchDrawingUIView()
         view.backgroundColor = .clear
         view.isOpaque = false
         view.isUserInteractionEnabled = true
-        view.project = project
-        view.currentFrameIndex = currentFrameIndex
-        view.currentLayerIndex = currentLayerIndex
-        view.selectedTool = selectedTool
-        view.selectedColorHex = selectedColorHex
-        view.brushSize = brushSize
-        view.brushOpacity = brushOpacity
+        view.updateProperties(
+            project: project,
+            currentFrameIndex: currentFrameIndex,
+            currentLayerIndex: currentLayerIndex,
+            selectedTool: selectedTool,
+            selectedColorHex: selectedColorHex,
+            brushSize: brushSize,
+            brushOpacity: brushOpacity,
+            canvasSize: canvasSize
+        )
         return view
     }
 
     func updateUIView(_ uiView: TouchDrawingUIView, context: Context) {
-        uiView.project = project
-        uiView.currentFrameIndex = currentFrameIndex
-        uiView.currentLayerIndex = currentLayerIndex
-        uiView.selectedTool = selectedTool
-        uiView.selectedColorHex = selectedColorHex
-        uiView.brushSize = brushSize
-        uiView.brushOpacity = brushOpacity
+        uiView.updateProperties(
+            project: project,
+            currentFrameIndex: currentFrameIndex,
+            currentLayerIndex: currentLayerIndex,
+            selectedTool: selectedTool,
+            selectedColorHex: selectedColorHex,
+            brushSize: brushSize,
+            brushOpacity: brushOpacity,
+            canvasSize: canvasSize
+        )
         uiView.setNeedsDisplay()
     }
 }
@@ -95,36 +123,57 @@ class TouchDrawingUIView: UIView {
     var currentLayerIndex: Int = 0
     var selectedTool: ToolType = .pen
     var selectedColorHex: String = "#000000"
-    var brushSize: CGFloat = 8.0
+    var brushSize: CGFloat = 12.0
     var brushOpacity: CGFloat = 1.0
+    var canvasSize: CGSize = CGSize(width: 300, height: 500)
 
-    private var activePoints: [StrokePoint] = []
+    private var activeProjectPoints: [StrokePoint] = []
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        self.isMultipleTouchEnabled = true
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        self.isMultipleTouchEnabled = true
+    func updateProperties(
+        project: ProjectModel,
+        currentFrameIndex: Int,
+        currentLayerIndex: Int,
+        selectedTool: ToolType,
+        selectedColorHex: String,
+        brushSize: CGFloat,
+        brushOpacity: CGFloat,
+        canvasSize: CGSize
+    ) {
+        self.project = project
+        self.currentFrameIndex = currentFrameIndex
+        self.currentLayerIndex = currentLayerIndex
+        self.selectedTool = selectedTool
+        self.selectedColorHex = selectedColorHex
+        self.brushSize = brushSize
+        self.brushOpacity = brushOpacity
+        self.canvasSize = canvasSize
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
+        guard let touch = touches.first, let project = project else { return }
+        let loc = touch.location(in: self)
+        let scaleX = project.width / max(self.bounds.width, 1.0)
+        let scaleY = project.height / max(self.bounds.height, 1.0)
+
+        let pX = loc.x * scaleX
+        let pY = loc.y * scaleY
         let pressure = touch.force > 0 ? touch.force / touch.maximumPossibleForce : 1.0
 
-        activePoints = [StrokePoint(x: location.x, y: location.y, pressure: pressure)]
+        activeProjectPoints = [StrokePoint(x: pX, y: pY, pressure: pressure)]
         setNeedsDisplay()
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
+        guard let touch = touches.first, let project = project else { return }
+        let loc = touch.location(in: self)
+        let scaleX = project.width / max(self.bounds.width, 1.0)
+        let scaleY = project.height / max(self.bounds.height, 1.0)
+
+        let pX = loc.x * scaleX
+        let pY = loc.y * scaleY
         let pressure = touch.force > 0 ? touch.force / touch.maximumPossibleForce : 1.0
 
-        activePoints.append(StrokePoint(x: location.x, y: location.y, pressure: pressure))
+        activeProjectPoints.append(StrokePoint(x: pX, y: pY, pressure: pressure))
         setNeedsDisplay()
     }
 
@@ -137,16 +186,16 @@ class TouchDrawingUIView: UIView {
     }
 
     private func commitActiveStroke() {
-        guard !activePoints.isEmpty, let project = project else {
-            activePoints.removeAll()
+        guard !activeProjectPoints.isEmpty, let project = project else {
+            activeProjectPoints.removeAll()
             return
         }
 
         if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
             let stroke = DrawingStroke(
-                points: activePoints,
+                points: activeProjectPoints,
                 colorHex: selectedColorHex,
-                strokeWidth: brushSize,
+                strokeWidth: brushSize * (project.width / max(self.bounds.width, 1.0)),
                 opacity: brushOpacity,
                 toolType: selectedTool
             )
@@ -158,30 +207,48 @@ class TouchDrawingUIView: UIView {
             project.updatedAt = Date()
         }
 
-        activePoints.removeAll()
+        activeProjectPoints.removeAll()
         setNeedsDisplay()
     }
 
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext(), let project = project else { return }
 
-        // 1. Onion Skin (Previous Frame in Translucent Red)
+        let scaleX = self.bounds.width / project.width
+        let scaleY = self.bounds.height / project.height
+
+        context.saveGState()
+        context.scaleBy(x: scaleX, y: scaleY)
+
+        // 1. Onion Skin (Previous Frame in Ghost Red)
         if project.onionSkinConfig.isEnabled && currentFrameIndex > 0 {
             let prevFrame = project.frames[currentFrameIndex - 1]
-            drawFrameLayers(context: context, frame: prevFrame, overrideColor: UIColor.red.withAlphaComponent(0.25))
+            drawFrameLayers(context: context, frame: prevFrame, overrideColor: UIColor.red.withAlphaComponent(0.3))
         }
 
-        // 2. Current Frame Layers
+        // 2. Active Frame Layers
         if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
             let currentFrame = project.frames[currentFrameIndex]
             drawFrameLayers(context: context, frame: currentFrame, overrideColor: nil)
         }
 
-        // 3. Live In-Progress Active Stroke
-        if !activePoints.isEmpty {
-            let activeColor = selectedTool == .eraser ? UIColor.lightGray.withAlphaComponent(0.4) : (UIColor(hex: selectedColorHex) ?? .black).withAlphaComponent(brushOpacity)
-            drawStrokePoints(context: context, points: activePoints, color: activeColor, strokeWidth: brushSize, isEraser: selectedTool == .eraser)
+        // 3. Live Active Stroke In-Progress
+        if !activeProjectPoints.isEmpty {
+            let strokeColor = selectedTool == .eraser
+                ? UIColor.lightGray.withAlphaComponent(0.4)
+                : (UIColor(hex: selectedColorHex) ?? .black).withAlphaComponent(brushOpacity)
+
+            let scaledWidth = brushSize * (project.width / max(self.bounds.width, 1.0))
+            drawStrokePoints(
+                context: context,
+                points: activeProjectPoints,
+                color: strokeColor,
+                strokeWidth: scaledWidth,
+                isEraser: selectedTool == .eraser
+            )
         }
+
+        context.restoreGState()
     }
 
     private func drawFrameLayers(context: CGContext, frame: AnimationFrame, overrideColor: UIColor?) {

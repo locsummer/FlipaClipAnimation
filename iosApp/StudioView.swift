@@ -14,7 +14,7 @@ struct StudioView: View {
     @State private var currentLayerIndex: Int = 0
     @State private var selectedTool: ToolType = .pen
     @State private var selectedColor: Color = .black
-    @State private var brushSize: CGFloat = 12.0
+    @State private var brushSize: CGFloat = 10.0
     @State private var brushOpacity: CGFloat = 1.0
 
     @State private var isPlaying: Bool = false
@@ -37,7 +37,7 @@ struct StudioView: View {
                 // 2. TOOL STRIP (Pen, Pencil, Marker, Airbrush, Eraser, Bucket, Color)
                 toolStripView
 
-                // 3. MAIN DRAWING CANVAS
+                // 3. MAIN DRAWING CANVAS (Trang giấy vẽ màu trắng ở giữa màn hình)
                 CanvasDrawingView(
                     project: project,
                     currentFrameIndex: $currentFrameIndex,
@@ -153,7 +153,7 @@ struct StudioView: View {
     // MARK: - Tool Strip
     private var toolStripView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ForEach([ToolType.pen, ToolType.pencil, ToolType.marker, ToolType.airbrush, ToolType.eraser, ToolType.bucket], id: \.self) { tool in
                     Button(action: {
                         selectedTool = tool
@@ -177,7 +177,7 @@ struct StudioView: View {
                     .frame(width: 32, height: 32)
                     .padding(.leading, 4)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.vertical, 6)
         }
         .background(Color(red: 0.14, green: 0.14, blue: 0.18))
