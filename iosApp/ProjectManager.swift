@@ -21,7 +21,6 @@ class ProjectManager: ObservableObject {
            !decoded.isEmpty {
             self.projects = decoded
         } else {
-            // Seed initial sample project
             createSampleProject()
         }
     }
@@ -33,8 +32,9 @@ class ProjectManager: ObservableObject {
     }
 
     func createProject(title: String, preset: CanvasPreset, fps: Int) -> ProjectModel {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Dự án mới" : title
         let newProject = ProjectModel(
-            title: title.isEmpty ? "Dự án mới" : title,
+            title: name,
             preset: preset,
             fps: fps,
             frames: [AnimationFrame()]
@@ -55,29 +55,40 @@ class ProjectManager: ObservableObject {
     }
 
     private func createSampleProject() {
+        var sampleFrames: [AnimationFrame] = []
+
+        for idx in 1...6 {
+            var frame = AnimationFrame()
+            var layer = AnimationLayer(name: "Layer 1")
+            
+            var yOffset: CGFloat = 0.0
+            if idx <= 3 {
+                yOffset = CGFloat((idx - 1) * 350)
+            } else {
+                yOffset = CGFloat((6 - idx) * 350)
+            }
+            let cy: CGFloat = 300.0 + yOffset
+
+            let p1 = StrokePoint(x: 540.0, y: cy, pressure: 1.0)
+            let p2 = StrokePoint(x: 542.0, y: cy + 1.0, pressure: 1.0)
+
+            let stroke = DrawingStroke(
+                points: [p1, p2],
+                colorHex: "#FF5722",
+                strokeWidth: 90.0,
+                opacity: 1.0,
+                toolType: .pen
+            )
+            layer.strokes = [stroke]
+            frame.layers = [layer]
+            sampleFrames.append(frame)
+        }
+
         let sample = ProjectModel(
             title: "Quả bóng nảy (Bouncing Ball)",
             preset: .tiktok,
             fps: 12,
-            frames: (1...6).map { idx in
-                var frame = AnimationFrame()
-                var layer = AnimationLayer(name: "Layer 1")
-                // Draw a ball bouncing down and up
-                let cy: CGFloat = CGFloat(300 + (idx <= 3 ? (idx - 1) * 350 : (6 - idx) * 350))
-                let stroke = DrawingStroke(
-                    points: [
-                        StrokePoint(x: 540, y: cy, pressure: 1.0),
-                        StrokePoint(x: 542, y: cy + 1, pressure: 1.0)
-                    ],
-                    colorHex: "#FF5722",
-                    strokeWidth: 90,
-                    opacity: 1.0,
-                    toolType: .pen
-                )
-                layer.strokes.append(stroke)
-                frame.layers = [layer]
-                return frame
-            }
+            frames: sampleFrames
         )
         self.projects = [sample]
         saveProjects()
