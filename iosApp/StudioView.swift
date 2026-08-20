@@ -1,6 +1,6 @@
 //
 //  StudioView.swift
-//  FlipaClip iOS Studio View - Animation Editing Canvas & Timeline
+//  FlipaClip iOS Studio View - Animation Editing Canvas & Timeline (iOS 15+ Compatible)
 //
 
 import SwiftUI
@@ -136,9 +136,8 @@ struct StudioView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "film")
                     Text("Xuất")
-                        .fontWeight(.bold)
+                        .font(.system(size: 13, weight: .bold))
                 }
-                .font(.system(size: 13))
                 .foregroundColor(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
@@ -196,9 +195,8 @@ struct StudioView: View {
                 }
 
                 Text("Frame \(currentFrameIndex + 1)/\(project.frames.count) • \(project.fps) FPS")
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.white)
-                    .font(.caption)
-                    .fontWeight(.bold)
 
                 Spacer()
 
@@ -243,8 +241,8 @@ struct StudioView: View {
                                             .stroke(idx == currentFrameIndex ? Color.orange : Color.clear, lineWidth: 2)
                                     )
                                 Text("\(idx + 1)")
+                                    .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.white)
-                                    .font(.headline)
                             }
                             .frame(width: 50, height: 60)
                         }
@@ -276,8 +274,7 @@ struct StudioView: View {
     private var exportSheetView: some View {
         VStack(spacing: 20) {
             Text("Xuất Hoạt Hình")
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.white)
                 .padding(.top, 24)
 
@@ -301,7 +298,7 @@ struct StudioView: View {
                 HStack {
                     Image(systemName: "video.fill")
                     Text("Xuất Video MP4 (Chuẩn H.264)")
-                        .fontWeight(.bold)
+                        .font(.system(size: 16, weight: .bold))
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -330,7 +327,7 @@ struct StudioView: View {
                 HStack {
                     Image(systemName: "photo.on.rectangle.angled")
                     Text("Xuất Ảnh Động GIF (Tự động lặp)")
-                        .fontWeight(.bold)
+                        .font(.system(size: 16, weight: .bold))
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -370,4 +367,14 @@ struct StudioView: View {
         case .text: return "textformat"
         }
     }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    var activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

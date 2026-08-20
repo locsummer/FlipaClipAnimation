@@ -1,6 +1,6 @@
 //
 //  HomeView.swift
-//  FlipaClip iOS Home Screen - Projects Management
+//  FlipaClip iOS Home Screen - Projects Management (iOS 15+ Compatible)
 //
 
 import SwiftUI
@@ -29,8 +29,7 @@ struct HomeView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Dự án của bạn")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
+                                    .font(.system(size: 22, weight: .bold))
                                     .foregroundColor(.white)
                                 Text("\(projectManager.projects.count) dự án hoạt hình")
                                     .font(.subheadline)
@@ -46,9 +45,8 @@ struct HomeView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "plus.circle.fill")
                                     Text("Tạo mới")
-                                        .fontWeight(.bold)
+                                        .font(.system(size: 14, weight: .bold))
                                 }
-                                .font(.system(size: 14))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
@@ -112,7 +110,6 @@ struct HomeView: View {
                     }
                     .listRowBackground(Color(red: 0.2, green: 0.2, blue: 0.24))
                 }
-                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Tạo dự án mới")
             .navigationBarTitleDisplayMode(.inline)
@@ -133,7 +130,7 @@ struct HomeView: View {
                         showNewProjectSheet = false
                         onOpenProject(created)
                     }
-                    .fontWeight(.bold)
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.orange)
                 }
             }
@@ -155,10 +152,9 @@ struct ProjectCardView: View {
                         .cornerRadius(12)
                         .shadow(color: Color.black.opacity(0.2), radius: 4)
 
-                    if let firstFrame = project.frames.first {
-                        CanvasViewRepresentable(frame: firstFrame, tintColor: nil)
-                            .allowsHitTesting(false)
-                    }
+                    ProjectThumbnailRepresentable(project: project)
+                        .cornerRadius(12)
+                        .allowsHitTesting(false)
 
                     // Delete button in top right
                     VStack {
@@ -194,5 +190,30 @@ struct ProjectCardView: View {
             .background(Color(red: 0.18, green: 0.18, blue: 0.22))
             .cornerRadius(16)
         }
+    }
+}
+
+struct ProjectThumbnailRepresentable: UIViewRepresentable {
+    let project: ProjectModel
+
+    func makeUIView(context: Context) -> UIImageView {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFit
+        imageView.backgroundColor = .white
+        updateImage(imageView: imageView)
+        return imageView
+    }
+
+    func updateUIView(_ uiView: UIImageView, context: Context) {
+        updateImage(imageView: uiView)
+    }
+
+    private func updateImage(imageView: UIImageView) {
+        let image = CanvasRenderer.renderFrame(
+            project: project,
+            frameIndex: 0,
+            size: CGSize(width: 200, height: 200)
+        )
+        imageView.image = image
     }
 }
