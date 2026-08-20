@@ -39,7 +39,7 @@ struct CanvasDrawingView: View {
                         currentFrameIndex: currentFrameIndex,
                         currentLayerIndex: currentLayerIndex,
                         selectedTool: selectedTool,
-                        selectedColorHex: selectedColor.toHexColor() ?? "#000000",
+                        selectedColorHex: selectedColor.toHexColor(),
                         brushSize: brushSize,
                         brushOpacity: brushOpacity
                     )
@@ -240,5 +240,19 @@ class TouchDrawingUIView: UIView {
         }
 
         context.restoreGState()
+    }
+}
+
+extension Color {
+    func toHexColor() -> String {
+        let uic = UIColor(self)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        if uic.getRed(&r, green: &g, blue: &b, alpha: &a) {
+            return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+        }
+        return "#000000"
     }
 }
