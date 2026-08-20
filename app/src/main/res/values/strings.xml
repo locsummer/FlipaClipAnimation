@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">FlipaClip</string>
+    <string name="create_project">Create Project</string>
+    <string name="new_animation">New Animation</string>
+    <string name="project_name">Project Name</string>
+    <string name="fps">FPS</string>
+    <string name="layers">Layers</string>
+    <string name="frames">Frames</string>
+    <string name="onion_skin">Onion Skin</string>
+    <string name="audio">Audio</string>
+    <string name="export">Export Movie</string>
+    <string name="make_movie">Make Movie</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+</resources>
