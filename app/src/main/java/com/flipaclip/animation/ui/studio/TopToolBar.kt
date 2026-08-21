@@ -44,6 +44,7 @@ fun TopToolBar(
     onOpenAudio: () -> Unit,
     onExport: () -> Unit,
     onBack: () -> Unit,
+    onAddStickman: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -159,6 +160,27 @@ fun TopToolBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Stickman / Puppet Rigging Tool (Nút Người que / Khớp xương)
+                ToolButton(
+                    icon = Icons.Default.DirectionsRun,
+                    isSelected = selectedTool == ToolType.PUPPET,
+                    onClick = { onToolSelected(ToolType.PUPPET) }
+                )
+
+                if (selectedTool == ToolType.PUPPET) {
+                    Button(
+                        onClick = onAddStickman,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("+ Người que", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 ToolButton(
                     icon = Icons.Default.Edit,
                     isSelected = selectedTool in listOf(ToolType.PEN, ToolType.PENCIL, ToolType.MARKER, ToolType.AIRBRUSH),

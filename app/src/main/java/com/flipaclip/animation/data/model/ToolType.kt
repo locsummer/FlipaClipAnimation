@@ -1,16 +1,17 @@
 package com.flipaclip.animation.data.model
 
 enum class ToolType(val label: String) {
-    PEN("Pen"),
-    PENCIL("Pencil"),
-    MARKER("Marker"),
-    AIRBRUSH("Airbrush"),
-    ERASER("Eraser"),
-    BUCKET_FILL("Paint Bucket"),
-    LASSO("Lasso"),
-    SHAPE("Ruler/Shape"),
-    TEXT("Text"),
-    EYEDROPPER("Color Picker")
+    PEN("Bút vẽ"),
+    PENCIL("Bút chì"),
+    MARKER("Dạ quang"),
+    AIRBRUSH("Bình phun"),
+    ERASER("Tẩy"),
+    PUPPET("Khớp xương / Người que"),
+    BUCKET_FILL("Đổ màu"),
+    LASSO("Chọn & Di chuyển"),
+    SHAPE("Hình khối"),
+    TEXT("Chữ"),
+    EYEDROPPER("Màu sắc")
 }
 
 enum class ShapeType(val label: String) {

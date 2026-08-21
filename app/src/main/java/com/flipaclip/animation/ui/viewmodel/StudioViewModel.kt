@@ -240,6 +240,62 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         triggerProjectUpdate()
     }
 
+    // Puppet / Stickman Skeletal Operations
+    fun addStickmanPuppet(centerX: Float? = null, centerY: Float? = null) {
+        val p = _project.value ?: return
+        val currentFrame = p.frames.getOrNull(_currentFrameIndex.value) ?: return
+        val currentLayer = currentFrame.getActiveLayer(_currentLayerIndex.value)
+        if (currentLayer.isLocked || !currentLayer.isVisible) return
+
+        recordUndoState(currentFrame)
+        val cx = centerX ?: (p.width / 2f)
+        val cy = centerY ?: (p.height / 2f)
+        val puppet = SkeletonPuppet.createDefaultStickman(cx, cy, _brushColor.value)
+        currentLayer.skeletons.add(puppet)
+        _selectedTool.value = ToolType.PUPPET
+        triggerProjectUpdate()
+    }
+
+    fun updatePuppetJoint(puppetId: String, jointId: String, newX: Float, newY: Float) {
+        val p = _project.value ?: return
+        val currentFrame = p.frames.getOrNull(_currentFrameIndex.value) ?: return
+        val currentLayer = currentFrame.getActiveLayer(_currentLayerIndex.value)
+        val puppet = currentLayer.skeletons.find { it.id == puppetId } ?: return
+        val joint = puppet.joints.find { it.id == jointId } ?: return
+
+        if (joint.type == JointType.HIP) {
+            // Root joint: Translate entire stickman
+            val dx = newX - joint.x
+            val dy = newY - joint.y
+            for (j in puppet.joints) {
+                j.x += dx
+                j.y += dy
+            }
+            puppet.rootX += dx
+            puppet.rootY += dy
+        } else {
+            // Individual joint: Move joint
+            joint.x = newX
+            joint.y = newY
+        }
+        triggerProjectUpdate()
+    }
+
+    fun recordPuppetUndo() {
+        val p = _project.value ?: return
+        val currentFrame = p.frames.getOrNull(_currentFrameIndex.value) ?: return
+        recordUndoState(currentFrame)
+    }
+
+    fun deletePuppet(puppetId: String) {
+        val p = _project.value ?: return
+        val currentFrame = p.frames.getOrNull(_currentFrameIndex.value) ?: return
+        val currentLayer = currentFrame.getActiveLayer(_currentLayerIndex.value)
+        recordUndoState(currentFrame)
+        currentLayer.skeletons.removeAll { it.id == puppetId }
+        triggerProjectUpdate()
+    }
+
     // Frame Operations
     fun selectFrame(index: Int) {
         val p = _project.value ?: return

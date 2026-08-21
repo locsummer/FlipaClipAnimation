@@ -120,6 +120,12 @@ fun StudioScreen(
             onApplyFloodFill = { x, y ->
                 studioViewModel.applyFloodFill(x, y)
             },
+            onPuppetJointMove = { puppetId, jointId, newX, newY ->
+                studioViewModel.updatePuppetJoint(puppetId, jointId, newX, newY)
+            },
+            onPuppetUndoRecord = {
+                studioViewModel.recordPuppetUndo()
+            },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -150,6 +156,7 @@ fun StudioScreen(
             onOpenAudio = { showAudioTracks = true },
             onExport = { showExportDialog = true },
             onBack = onBackToHome,
+            onAddStickman = { studioViewModel.addStickmanPuppet() },
             modifier = Modifier.align(Alignment.TopCenter)
         )
 

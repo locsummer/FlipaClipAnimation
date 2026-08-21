@@ -15,10 +15,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
-import com.flipaclip.animation.data.model.DrawingStroke
-import com.flipaclip.animation.data.model.Project
-import com.flipaclip.animation.data.model.ShapeItem
-import com.flipaclip.animation.data.model.ToolType
+import com.flipaclip.animation.data.model.*
 import com.flipaclip.animation.engine.CanvasDrawingEngine
 import com.flipaclip.animation.engine.OnionSkinEngine
 import com.flipaclip.animation.ui.theme.DarkBackground
@@ -41,6 +38,8 @@ fun CanvasView(
     onTouchEnd: (Float, Float) -> Unit,
     onCancelStroke: () -> Unit,
     onApplyFloodFill: (Float, Float) -> Unit,
+    onPuppetJointMove: (String, String, Float, Float) -> Unit,
+    onPuppetUndoRecord: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
@@ -51,14 +50,18 @@ fun CanvasView(
     var prevPanCenterX by remember { mutableFloatStateOf(0f) }
     var prevPanCenterY by remember { mutableFloatStateOf(0f) }
 
+    // Active dragging joint for Puppet tool
+    var activePuppetId by remember { mutableStateOf<String?>(null) }
+    var activeJointId by remember { mutableStateOf<String?>(null) }
+
     // Double-buffered frame bitmap cache for optimal rendering performance
     val frameBitmap = remember(project.id, currentFrameIndex, project.updatedAt) {
+        val currentFrame = project.frames.getOrNull(currentFrameIndex) ?: Frame()
         CanvasDrawingEngine.renderFrameToBitmap(
-            project = project,
-            frameIndex = currentFrameIndex,
-            targetWidth = project.width,
-            targetHeight = project.height,
-            includeBackground = false
+            frame = currentFrame,
+            width = project.width,
+            height = project.height,
+            backgroundColor = android.graphics.Color.WHITE
         )
     }
 
@@ -96,7 +99,37 @@ fun CanvasView(
                     MotionEvent.ACTION_DOWN -> {
                         isMultiTouch = false
                         val (canvasX, canvasY) = screenToCanvas(motionEvent.x, motionEvent.y)
-                        if (selectedTool == ToolType.BUCKET_FILL) {
+
+                        if (selectedTool == ToolType.PUPPET) {
+                            // Find closest joint handle
+                            val currentFrame = project.frames.getOrNull(currentFrameIndex)
+                            val currentLayer = currentFrame?.getActiveLayer(currentLayerIndex)
+                            var foundJoint: JointNode? = null
+                            var foundPuppet: SkeletonPuppet? = null
+
+                            if (currentLayer != null) {
+                                for (puppet in currentLayer.skeletons) {
+                                    for (joint in puppet.joints) {
+                                        val dist = Math.hypot((joint.x - canvasX).toDouble(), (joint.y - canvasY).toDouble()).toFloat()
+                                        if (dist < 60f) { // 60px touch threshold for easy finger dragging
+                                            foundJoint = joint
+                                            foundPuppet = puppet
+                                            break
+                                        }
+                                    }
+                                    if (foundJoint != null) break
+                                }
+                            }
+
+                            if (foundJoint != null && foundPuppet != null) {
+                                activePuppetId = foundPuppet.id
+                                activeJointId = foundJoint.id
+                                onPuppetUndoRecord()
+                            } else {
+                                activePuppetId = null
+                                activeJointId = null
+                            }
+                        } else if (selectedTool == ToolType.BUCKET_FILL) {
                             onApplyFloodFill(canvasX, canvasY)
                         } else {
                             onTouchStart(canvasX, canvasY, motionEvent.pressure)
@@ -106,6 +139,8 @@ fun CanvasView(
 
                     MotionEvent.ACTION_POINTER_DOWN -> {
                         isMultiTouch = true
+                        activePuppetId = null
+                        activeJointId = null
                         onCancelStroke() // Cancel any accidental stroke dot from finger 1
                         if (motionEvent.pointerCount >= 2) {
                             val p0x = motionEvent.getX(0)
@@ -144,9 +179,15 @@ fun CanvasView(
                                 prevPanCenterY = curCenterY
                             }
                         } else {
-                            // Single finger drawing mode - No pan/zoom jitter!
-                            if (selectedTool != ToolType.BUCKET_FILL) {
-                                val (canvasX, canvasY) = screenToCanvas(motionEvent.x, motionEvent.y)
+                            // Single finger interaction mode
+                            val (canvasX, canvasY) = screenToCanvas(motionEvent.x, motionEvent.y)
+                            if (selectedTool == ToolType.PUPPET) {
+                                val pId = activePuppetId
+                                val jId = activeJointId
+                                if (pId != null && jId != null) {
+                                    onPuppetJointMove(pId, jId, canvasX, canvasY)
+                                }
+                            } else if (selectedTool != ToolType.BUCKET_FILL) {
                                 onTouchMove(canvasX, canvasY, motionEvent.pressure)
                             }
                         }
@@ -160,7 +201,10 @@ fun CanvasView(
 
                     MotionEvent.ACTION_UP -> {
                         if (!isMultiTouch) {
-                            if (selectedTool != ToolType.BUCKET_FILL) {
+                            if (selectedTool == ToolType.PUPPET) {
+                                activePuppetId = null
+                                activeJointId = null
+                            } else if (selectedTool != ToolType.BUCKET_FILL) {
                                 val (canvasX, canvasY) = screenToCanvas(motionEvent.x, motionEvent.y)
                                 onTouchEnd(canvasX, canvasY)
                             }
@@ -171,6 +215,8 @@ fun CanvasView(
 
                     MotionEvent.ACTION_CANCEL -> {
                         onCancelStroke()
+                        activePuppetId = null
+                        activeJointId = null
                         isMultiTouch = false
                         return@pointerInteropFilter true
                     }
@@ -203,14 +249,9 @@ fun CanvasView(
                 nativeCanvas.translate(canvasLeft, canvasTop)
                 nativeCanvas.scale(finalScale, finalScale)
 
-                // 1. Draw Canvas Background
-                CanvasDrawingEngine.renderBackground(
-                    nativeCanvas,
-                    project.width,
-                    project.height,
-                    project.backgroundType,
-                    project.backgroundColor
-                )
+                // 1. Draw Canvas Background (White Paper)
+                val bgPaint = Paint().apply { color = android.graphics.Color.WHITE }
+                nativeCanvas.drawRect(0f, 0f, project.width.toFloat(), project.height.toFloat(), bgPaint)
 
                 // 2. Draw Onion Skins (Ghost frames behind and ahead)
                 if (project.onionSkinConfig.isEnabled) {
@@ -224,7 +265,24 @@ fun CanvasView(
                 // 3. Draw Cached Frame Layers
                 nativeCanvas.drawBitmap(frameBitmap, 0f, 0f, null)
 
-                // 4. Draw Active In-Progress Stroke / Shape (Live preview)
+                // 4. Draw Skeletons / Puppets with Interactive Handles if in PUPPET mode
+                val currentFrame = project.frames.getOrNull(currentFrameIndex)
+                if (currentFrame != null) {
+                    for (layer in currentFrame.layers) {
+                        if (layer.isVisible) {
+                            for (puppet in layer.skeletons) {
+                                CanvasDrawingEngine.drawSkeleton(
+                                    canvas = nativeCanvas,
+                                    puppet = puppet,
+                                    isEditing = (selectedTool == ToolType.PUPPET),
+                                    selectedJointId = activeJointId
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 5. Draw Active In-Progress Stroke / Shape (Live preview)
                 activeStroke?.let { stroke ->
                     if (stroke.toolType == ToolType.ERASER) {
                         val eraserCursorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -246,7 +304,7 @@ fun CanvasView(
                     CanvasDrawingEngine.drawShape(nativeCanvas, shape)
                 }
 
-                // 5. Draw Canvas Border Outline
+                // 6. Draw Canvas Border Outline
                 val borderPaint = Paint().apply {
                     color = 0xFF424242.toInt()
                     style = Paint.Style.STROKE

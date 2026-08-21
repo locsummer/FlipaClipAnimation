@@ -113,9 +113,53 @@ class CanvasRenderer {
                     drawText(cgContext: cgContext, textItem: textItem)
                 }
 
+                for puppet in layer.skeletons where puppet.isVisible {
+                    drawSkeleton(cgContext: cgContext, puppet: puppet)
+                }
+
                 cgContext.restoreGState()
             }
         }
+    }
+
+    private static func drawSkeleton(cgContext: CGContext, puppet: SkeletonPuppet) {
+        let puppetColor = UIColor(hex: puppet.colorHex) ?? .black
+        let jointMap = Dictionary(uniqueKeysWithValues: puppet.joints.map { ($0.id, $0) })
+
+        // 1. Draw Bones
+        cgContext.saveGState()
+        cgContext.setStrokeColor(puppetColor.cgColor)
+        cgContext.setLineCap(.round)
+        cgContext.setLineJoin(.round)
+
+        for bone in puppet.bones {
+            if let start = jointMap[bone.startJointId], let end = jointMap[bone.endJointId] {
+                cgContext.setLineWidth(bone.thickness)
+                cgContext.strokeLineSegments(between: [CGPoint(x: start.x, y: start.y), CGPoint(x: end.x, y: end.y)])
+            }
+        }
+        cgContext.restoreGState()
+
+        // 2. Draw Head
+        if let headJoint = puppet.joints.first(where: { $0.type == .head }) {
+            cgContext.saveGState()
+            let headRect = CGRect(x: headJoint.x - puppet.headRadius, y: headJoint.y - puppet.headRadius, width: puppet.headRadius * 2, height: puppet.headRadius * 2)
+            cgContext.setFillColor(UIColor.white.cgColor)
+            cgContext.fillEllipse(in: headRect)
+            cgContext.setStrokeColor(puppetColor.cgColor)
+            cgContext.setLineWidth(puppet.strokeWidth)
+            cgContext.strokeEllipse(in: headRect)
+            cgContext.restoreGState()
+        }
+
+        // 3. Draw Joints
+        cgContext.saveGState()
+        cgContext.setFillColor(puppetColor.cgColor)
+        for joint in puppet.joints where joint.type != .head {
+            let r = joint.radius
+            cgContext.fillEllipse(in: CGRect(x: joint.x - r, y: joint.y - r, width: r * 2, height: r * 2))
+        }
+        cgContext.restoreGState()
     }
 
     private static func drawStroke(cgContext: CGContext, stroke: DrawingStroke) {

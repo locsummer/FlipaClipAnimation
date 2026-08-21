@@ -1,6 +1,6 @@
 //
 //  StudioView.swift
-//  FlipaClip iOS Studio View - Animation Editing Canvas & Timeline (iOS 15+ Compatible)
+//  FlipaClip iOS Studio View - Animation Editing Canvas, Skeletal Puppet Engine & Timeline (iOS 15+ Compatible)
 //
 
 import SwiftUI
@@ -12,7 +12,7 @@ struct StudioView: View {
 
     @State private var currentFrameIndex: Int = 0
     @State private var currentLayerIndex: Int = 0
-    @State private var selectedTool: ToolType = .pen
+    @State private var selectedTool: ToolType = .puppet
     @State private var selectedColor: Color = .black
     @State private var brushSize: CGFloat = 10.0
     @State private var brushOpacity: CGFloat = 1.0
@@ -34,7 +34,7 @@ struct StudioView: View {
                 // 1. TOP TOOLBAR (Back, Undo, Redo, Onion Skin, Export Button)
                 topToolbarView
 
-                // 2. TOOL STRIP (Pen, Pencil, Marker, Airbrush, Eraser, Bucket, Color)
+                // 2. TOOL STRIP (Stickman Puppet, Pen, Pencil, Marker, Airbrush, Eraser, Bucket, Color)
                 toolStripView
 
                 // 3. MAIN DRAWING CANVAS (Trang giấy vẽ màu trắng ở giữa màn hình)
@@ -154,7 +154,23 @@ struct StudioView: View {
     private var toolStripView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach([ToolType.pen, ToolType.pencil, ToolType.marker, ToolType.airbrush, ToolType.eraser, ToolType.bucket], id: \.self) { tool in
+                // Nút Tạo Người Que (Puppet Spawner)
+                if selectedTool == .puppet {
+                    Button(action: addStickmanPuppet) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                            Text("+ Người que")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.green)
+                        .cornerRadius(8)
+                    }
+                }
+
+                ForEach([ToolType.puppet, ToolType.pen, ToolType.pencil, ToolType.marker, ToolType.airbrush, ToolType.eraser, ToolType.bucket], id: \.self) { tool in
                     Button(action: {
                         selectedTool = tool
                     }) {
@@ -181,6 +197,21 @@ struct StudioView: View {
             .padding(.vertical, 6)
         }
         .background(Color(red: 0.14, green: 0.14, blue: 0.18))
+    }
+
+    private func addStickmanPuppet() {
+        guard currentFrameIndex >= 0 && currentFrameIndex < project.frames.count else { return }
+        let puppet = SkeletonPuppet.createDefaultStickman(
+            centerX: project.width / 2,
+            centerY: project.height / 2,
+            colorHex: selectedColor.toHexColor()
+        )
+        if currentLayerIndex >= 0 && currentLayerIndex < project.frames[currentFrameIndex].layers.count {
+            project.frames[currentFrameIndex].layers[currentLayerIndex].skeletons.append(puppet)
+        } else if !project.frames[currentFrameIndex].layers.isEmpty {
+            project.frames[currentFrameIndex].layers[0].skeletons.append(puppet)
+        }
+        project.updatedAt = Date()
     }
 
     // MARK: - Bottom Timeline
@@ -226,47 +257,62 @@ struct StudioView: View {
             }
             .padding(.horizontal, 16)
 
-            // Frames Scroll Strip
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(0..<project.frames.count, id: \.self) { idx in
+            // Timeline Filmstrip
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(0..<project.frames.count, id: \.self) { index in
+                            Button(action: {
+                                currentFrameIndex = index
+                            }) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(currentFrameIndex == index ? Color.orange : Color(red: 0.22, green: 0.22, blue: 0.26))
+                                        .frame(width: 50, height: 50)
+
+                                    Text("\(index + 1)")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .id(index)
+                        }
+
+                        // Add Frame Button (+)
                         Button(action: {
-                            currentFrameIndex = idx
+                            // Copy previous frame's puppet pose so user only moves joints in next frame!
+                            var newLayer = AnimationLayer(name: "Layer 1")
+                            if currentFrameIndex < project.frames.count {
+                                let currLayer = project.frames[currentFrameIndex].layers.first
+                                if let puppets = currLayer?.skeletons {
+                                    newLayer.skeletons = puppets // Carry over stickman pose!
+                                }
+                            }
+                            project.frames.insert(AnimationFrame(layers: [newLayer]), at: currentFrameIndex + 1)
+                            currentFrameIndex += 1
                         }) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(idx == currentFrameIndex ? Color.orange.opacity(0.3) : Color(red: 0.2, green: 0.2, blue: 0.24))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(idx == currentFrameIndex ? Color.orange : Color.clear, lineWidth: 2)
-                                    )
-                                Text("\(idx + 1)")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(.white)
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.gray, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                                    .frame(width: 50, height: 50)
+
+                                Image(systemName: "plus")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.orange)
                             }
-                            .frame(width: 50, height: 60)
                         }
                     }
-
-                    // Add Blank Frame Button
-                    Button(action: {
-                        project.frames.append(AnimationFrame())
-                        currentFrameIndex = project.frames.count - 1
-                    }) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(red: 0.2, green: 0.2, blue: 0.24))
-                            Image(systemName: "plus")
-                                .foregroundColor(.orange)
-                                .font(.title3)
-                        }
-                        .frame(width: 50, height: 60)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                }
+                .onChange(of: currentFrameIndex) { newIndex in
+                    withAnimation {
+                        proxy.scrollTo(newIndex, anchor: .center)
                     }
                 }
-                .padding(.horizontal, 16)
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .background(Color(red: 0.16, green: 0.16, blue: 0.2))
     }
 
@@ -274,14 +320,21 @@ struct StudioView: View {
     private var exportSheetView: some View {
         VStack(spacing: 20) {
             Text("Xuất Hoạt Hình")
-                .font(.system(size: 20, weight: .bold))
+                .font(.title2)
+                .fontWeight(.bold)
                 .foregroundColor(.white)
-                .padding(.top, 24)
 
+            Text("Chọn định dạng xuất video cho dự án '\(project.title)':")
+                .font(.subheadline)
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+
+            // Export to MP4 Button
             Button(action: {
                 showExportDialog = false
                 isExporting = true
                 exportProgress = 0.0
+
                 VideoExportEngine.exportToMp4(project: project, onProgress: { p in
                     exportProgress = p
                 }) { result in
@@ -297,7 +350,7 @@ struct StudioView: View {
             }) {
                 HStack {
                     Image(systemName: "video.fill")
-                    Text("Xuất Video MP4 (Chuẩn H.264)")
+                    Text("Xuất Video MP4 (Chuẩn TikTok / YouTube)")
                         .font(.system(size: 16, weight: .bold))
                 }
                 .frame(maxWidth: .infinity)
@@ -307,10 +360,12 @@ struct StudioView: View {
                 .cornerRadius(14)
             }
 
+            // Export to GIF Button
             Button(action: {
                 showExportDialog = false
                 isExporting = true
                 exportProgress = 0.0
+
                 GifExportEngine.exportToGif(project: project, onProgress: { p in
                     exportProgress = p
                 }) { result in
@@ -357,6 +412,7 @@ struct StudioView: View {
 
     private func iconName(for tool: ToolType) -> String {
         switch tool {
+        case .puppet: return "figure.walk"
         case .pen: return "pencil.tip"
         case .pencil: return "pencil"
         case .marker: return "highlighter"

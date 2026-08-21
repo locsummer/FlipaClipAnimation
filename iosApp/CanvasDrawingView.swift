@@ -1,6 +1,6 @@
 //
 //  CanvasDrawingView.swift
-//  FlipaClip iOS Responsive Drawing Canvas with Vector Mapping
+//  FlipaClip iOS Responsive Drawing Canvas with Vector Mapping & Skeletal Puppet Engine
 //
 
 import SwiftUI
@@ -128,6 +128,8 @@ class TouchDrawingUIView: UIView {
     var canvasSize: CGSize = CGSize(width: 300, height: 500)
 
     private var activeProjectPoints: [StrokePoint] = []
+    private var activePuppetId: UUID? = nil
+    private var activeJointId: UUID? = nil
 
     func updateProperties(
         project: ProjectModel,
@@ -159,8 +161,30 @@ class TouchDrawingUIView: UIView {
         let pY = loc.y * scaleY
         let pressure = touch.force > 0 ? touch.force / touch.maximumPossibleForce : 1.0
 
-        activeProjectPoints = [StrokePoint(x: pX, y: pY, pressure: pressure)]
-        setNeedsDisplay()
+        if selectedTool == .puppet {
+            activePuppetId = nil
+            activeJointId = nil
+
+            if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
+                let frame = project.frames[currentFrameIndex]
+                for layer in frame.layers where layer.isVisible {
+                    for puppet in layer.skeletons where puppet.isVisible {
+                        for joint in puppet.joints {
+                            let dist = hypot(joint.x - pX, joint.y - pY)
+                            if dist < 60.0 {
+                                activePuppetId = puppet.id
+                                activeJointId = joint.id
+                                setNeedsDisplay()
+                                return
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            activeProjectPoints = [StrokePoint(x: pX, y: pY, pressure: pressure)]
+            setNeedsDisplay()
+        }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -173,16 +197,61 @@ class TouchDrawingUIView: UIView {
         let pY = loc.y * scaleY
         let pressure = touch.force > 0 ? touch.force / touch.maximumPossibleForce : 1.0
 
-        activeProjectPoints.append(StrokePoint(x: pX, y: pY, pressure: pressure))
-        setNeedsDisplay()
+        if selectedTool == .puppet {
+            guard let puppetId = activePuppetId, let jointId = activeJointId else { return }
+            if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
+                for lIdx in 0..<project.frames[currentFrameIndex].layers.count {
+                    for pIdx in 0..<project.frames[currentFrameIndex].layers[lIdx].skeletons.count {
+                        if project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].id == puppetId {
+                            let joints = project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].joints
+                            if let jIdx = joints.firstIndex(where: { $0.id == jointId }) {
+                                let joint = joints[jIdx]
+                                if joint.type == .hip {
+                                    // Move whole puppet
+                                    let dx = pX - joint.x
+                                    let dy = pY - joint.y
+                                    for k in 0..<project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].joints.count {
+                                        project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].joints[k].x += dx
+                                        project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].joints[k].y += dy
+                                    }
+                                    project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].rootX += dx
+                                    project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].rootY += dy
+                                } else {
+                                    project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].joints[jIdx].x = pX
+                                    project.frames[currentFrameIndex].layers[lIdx].skeletons[pIdx].joints[jIdx].y = pY
+                                }
+                                project.updatedAt = Date()
+                                setNeedsDisplay()
+                                return
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            activeProjectPoints.append(StrokePoint(x: pX, y: pY, pressure: pressure))
+            setNeedsDisplay()
+        }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        commitActiveStroke()
+        if selectedTool == .puppet {
+            activePuppetId = nil
+            activeJointId = nil
+            setNeedsDisplay()
+        } else {
+            commitActiveStroke()
+        }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        commitActiveStroke()
+        if selectedTool == .puppet {
+            activePuppetId = nil
+            activeJointId = nil
+            setNeedsDisplay()
+        } else {
+            commitActiveStroke()
+        }
     }
 
     private func commitActiveStroke() {
@@ -223,13 +292,13 @@ class TouchDrawingUIView: UIView {
         // 1. Onion Skin (Previous Frame in Ghost Red)
         if project.onionSkinConfig.isEnabled && currentFrameIndex > 0 {
             let prevFrame = project.frames[currentFrameIndex - 1]
-            drawFrameLayers(context: context, frame: prevFrame, overrideColor: UIColor.red.withAlphaComponent(0.3))
+            drawFrameLayers(context: context, frame: prevFrame, overrideColor: UIColor.red.withAlphaComponent(0.3), isEditing: false)
         }
 
-        // 2. Active Frame Layers
+        // 2. Active Frame Layers & Puppets
         if currentFrameIndex >= 0 && currentFrameIndex < project.frames.count {
             let currentFrame = project.frames[currentFrameIndex]
-            drawFrameLayers(context: context, frame: currentFrame, overrideColor: nil)
+            drawFrameLayers(context: context, frame: currentFrame, overrideColor: nil, isEditing: (selectedTool == .puppet))
         }
 
         // 3. Live Active Stroke In-Progress
@@ -251,7 +320,7 @@ class TouchDrawingUIView: UIView {
         context.restoreGState()
     }
 
-    private func drawFrameLayers(context: CGContext, frame: AnimationFrame, overrideColor: UIColor?) {
+    private func drawFrameLayers(context: CGContext, frame: AnimationFrame, overrideColor: UIColor?, isEditing: Bool) {
         for layer in frame.layers where layer.isVisible {
             context.saveGState()
             context.setAlpha(layer.opacity)
@@ -267,7 +336,80 @@ class TouchDrawingUIView: UIView {
                 )
             }
 
+            for puppet in layer.skeletons where puppet.isVisible {
+                drawSkeleton(context: context, puppet: puppet, overrideColor: overrideColor, isEditing: isEditing)
+            }
+
             context.restoreGState()
+        }
+    }
+
+    private func drawSkeleton(context: CGContext, puppet: SkeletonPuppet, overrideColor: UIColor?, isEditing: Bool) {
+        let puppetColor = overrideColor ?? (UIColor(hex: puppet.colorHex) ?? .black)
+        let jointMap = Dictionary(uniqueKeysWithValues: puppet.joints.map { ($0.id, $0) })
+
+        // 1. Draw Bones
+        context.saveGState()
+        context.setStrokeColor(puppetColor.cgColor)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+
+        for bone in puppet.bones {
+            if let start = jointMap[bone.startJointId], let end = jointMap[bone.endJointId] {
+                context.setLineWidth(bone.thickness)
+                context.strokeLineSegments(between: [CGPoint(x: start.x, y: start.y), CGPoint(x: end.x, y: end.y)])
+            }
+        }
+        context.restoreGState()
+
+        // 2. Draw Head
+        if let headJoint = puppet.joints.first(where: { $0.type == .head }) {
+            context.saveGState()
+            let headRect = CGRect(x: headJoint.x - puppet.headRadius, y: headJoint.y - puppet.headRadius, width: puppet.headRadius * 2, height: puppet.headRadius * 2)
+            context.setFillColor(UIColor.white.cgColor)
+            context.fillEllipse(in: headRect)
+            context.setStrokeColor(puppetColor.cgColor)
+            context.setLineWidth(puppet.strokeWidth)
+            context.strokeEllipse(in: headRect)
+            context.restoreGState()
+        }
+
+        // 3. Draw Joints
+        context.saveGState()
+        context.setFillColor(puppetColor.cgColor)
+        for joint in puppet.joints where joint.type != .head {
+            let r = joint.radius
+            context.fillEllipse(in: CGRect(x: joint.x - r, y: joint.y - r, width: r * 2, height: r * 2))
+        }
+        context.restoreGState()
+
+        // 4. Draw Interactive Handles if Editing
+        if isEditing {
+            for joint in puppet.joints {
+                let isSelected = (joint.id == activeJointId)
+                let r: CGFloat = isSelected ? 28 : 22
+
+                let handleColor: UIColor
+                if isSelected {
+                    handleColor = UIColor.systemOrange
+                } else {
+                    switch joint.type {
+                    case .hip: handleColor = UIColor.systemYellow
+                    case .head: handleColor = UIColor.systemBlue
+                    case .leftHand, .rightHand: handleColor = UIColor.systemPink
+                    case .leftFoot, .rightFoot: handleColor = UIColor.systemGreen
+                    default: handleColor = UIColor.systemOrange
+                    }
+                }
+
+                let handleRect = CGRect(x: joint.x - r, y: joint.y - r, width: r * 2, height: r * 2)
+                context.setFillColor(handleColor.cgColor)
+                context.fillEllipse(in: handleRect)
+
+                context.setStrokeColor(UIColor.white.cgColor)
+                context.setLineWidth(4.0)
+                context.strokeEllipse(in: handleRect)
+            }
         }
     }
 

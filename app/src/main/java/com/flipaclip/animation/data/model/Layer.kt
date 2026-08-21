@@ -12,6 +12,7 @@ data class Layer(
     val strokes: MutableList<DrawingStroke> = mutableListOf(),
     val shapes: MutableList<ShapeItem> = mutableListOf(),
     val texts: MutableList<TextItem> = mutableListOf(),
+    val skeletons: MutableList<SkeletonPuppet> = mutableListOf(),
     @Transient var cachedBitmapPath: String? = null
 ) : Serializable {
 
@@ -25,6 +26,7 @@ data class Layer(
             strokes = strokes.map { it.copy(points = it.points.toList()) }.toMutableList(),
             shapes = shapes.map { it.copy() }.toMutableList(),
             texts = texts.map { it.copy() }.toMutableList(),
+            skeletons = skeletons.map { it.deepCopy() }.toMutableList(),
             cachedBitmapPath = cachedBitmapPath
         )
     }
