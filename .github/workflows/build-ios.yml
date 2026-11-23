@@ -5,6 +5,9 @@ on:
     branches: [ master, main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build & Export IPA
@@ -43,3 +46,11 @@ jobs:
           path: FlipaClipAnimation.ipa
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish Release with Direct IPA Download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-build
+          name: "FlipaClip iOS Build (Sideloadly IPA)"
+          body: "Direct download of FlipaClipAnimation.ipa for Sideloadly installation."
+          files: FlipaClipAnimation.ipa
